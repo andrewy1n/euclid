@@ -545,43 +545,46 @@ export default function ProblemSpace() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-black">
+      {/* Animated background gradient */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-900/10 via-purple-900/10 to-indigo-900/10 animate-pulse"></div>
+      
       {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200">
+      <div className="relative z-10 bg-black/50 backdrop-blur-sm border-b border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Left side - Back button and session info */}
             <div className="flex items-center space-x-4">
               <button
                 onClick={goBackToHome}
-                className="text-gray-500 hover:text-gray-700 transition-colors"
+                className="text-gray-400 hover:text-white transition-colors font-ibm-plex"
               >
                 ← Back to Home
               </button>
-              <div className="h-6 w-px bg-gray-300"></div>
+              <div className="h-6 w-px bg-gray-700"></div>
               <div>
-                <h1 className="text-lg font-semibold text-gray-900">{workspaceData.title}</h1>
-                <p className="text-sm text-gray-500">Problem Space</p>
+                <h1 className="text-lg font-semibold text-white font-karla">{workspaceData.title}</h1>
+                <p className="text-sm text-gray-400 font-ibm-plex">Problem Space</p>
               </div>
             </div>
 
             {/* Right side - Question navigation */}
             <div className="flex items-center space-x-4">
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-gray-300 font-ibm-plex">
                 Question {currentQuestionIndex + 1} of {totalQuestions}
               </div>
               <div className="flex space-x-2">
                 <button
                   onClick={goToPreviousQuestion}
                   disabled={currentQuestionIndex === 0}
-                  className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-3 py-1 text-sm border border-gray-600 rounded-md hover:bg-gray-800/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-gray-300 font-ibm-plex"
                 >
                   Previous
                 </button>
                 <button
                   onClick={goToNextQuestion}
                   disabled={currentQuestionIndex === totalQuestions - 1}
-                  className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-3 py-1 text-sm border border-gray-600 rounded-md hover:bg-gray-800/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-gray-300 font-ibm-plex"
                 >
                   Next
                 </button>
@@ -592,23 +595,23 @@ export default function ProblemSpace() {
       </div>
 
       {/* Question Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <div className="relative z-10 bg-black/30 backdrop-blur-sm border-b border-gray-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="bg-blue-100 text-blue-800 font-semibold rounded-full w-8 h-8 flex items-center justify-center text-sm">
+            <div className="flex items-center space-x-3">
+              <div className="bg-blue-600/30 text-blue-400 font-semibold rounded-full w-6 h-6 flex items-center justify-center text-xs border border-blue-500/30">
                 {currentQuestionIndex + 1}
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Question {currentQuestionIndex + 1}</h2>
-                <p className="text-sm text-gray-500">Solve the following problem</p>
+                <h2 className="text-lg font-semibold text-white font-karla">Question {currentQuestionIndex + 1}</h2>
+                <p className="text-xs text-gray-400 font-ibm-plex">Solve the following problem</p>
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              <span className={`text-sm font-medium px-3 py-1 rounded-full ${
+              <span className={`text-xs font-medium px-2 py-1 rounded-full ${
                 currentQuestion.is_complete
-                  ? "bg-green-100 text-green-700"
-                  : "bg-yellow-100 text-yellow-700"
+                  ? "bg-green-900/30 text-green-400 border border-green-500/30"
+                  : "bg-yellow-900/30 text-yellow-400 border border-yellow-500/30"
               }`}>
                 {currentQuestion.is_complete ? "Finished" : "In Progress"}
               </span>
@@ -618,21 +621,22 @@ export default function ProblemSpace() {
       </div>
 
       {/* Question Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <div className="bg-gray-50 rounded-lg p-6">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="bg-gray-900/50 backdrop-blur-sm rounded-lg shadow-lg border border-gray-700 p-3 mb-3">
+          <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600">
             {currentQuestion.question ? (
-              // <p className="text-lg text-gray-700">{currentQuestion.question}</p>
-              <BlockMath>{String.raw`${currentQuestion.question}`}</BlockMath>
+              <div className="text-sm [&_.katex]:font-normal [&_.katex-display]:font-normal [&_.katex]:text-white [&_.katex-display]:text-white">
+                <BlockMath>{String.raw`${currentQuestion.question}`}</BlockMath>
+              </div>
             ) : (
-              <p className="text-gray-500 italic">No question text available</p>
+              <p className="text-gray-400 italic text-sm font-ibm-plex">No question text available</p>
             )}
           </div>
         </div>
 
         {/* TLDraw Component */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="h-[600px]">
+        <div className="bg-gray-900/50 backdrop-blur-sm rounded-lg shadow-lg border border-gray-700 overflow-hidden">
+          <div className="h-[500px]">
             <Tldraw>
               <SubmitHelpButtons 
                 questionId={currentQuestion.page_id} 

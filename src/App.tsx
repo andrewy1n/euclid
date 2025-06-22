@@ -6,36 +6,21 @@ import { ThemeSupa } from '@supabase/auth-ui-shared'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import Home from './pages/Home'
 import ProblemSpace from './pages/ProblemSpace'
+import ThreeJSLanding from './components/ThreeJSLanding'
 import { supabase, getSession, onAuthStateChange } from './util/supabase'
-
-function LandingPage({ onShowLogin }: { onShowLogin: () => void }) {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-      <div className="text-center max-w-2xl mx-auto px-6">
-        <h1 className="text-5xl font-bold text-gray-800 mb-6">Welcome to Our App</h1>
-        <p className="text-xl text-gray-600 mb-8">
-          Get started by signing in to access your personalized experience.
-        </p>
-        <button 
-          onClick={onShowLogin} 
-          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg text-lg transition-colors shadow-lg hover:shadow-xl"
-        >
-          Get Started
-        </button>
-      </div>
-    </div>
-  )
-}
 
 function LoginPage({ onBack }: { onBack: () => void }) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
+    <div className="min-h-screen bg-black flex items-center justify-center p-4">
+      {/* Animated background gradient */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-900/10 via-purple-900/10 to-indigo-900/10 animate-pulse"></div>
+      
+      <div className="relative z-10 bg-gray-900/50 backdrop-blur-sm p-8 rounded-lg shadow-2xl max-w-md w-full border border-gray-700">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">Login</h1>
+          <h1 className="text-2xl font-bold text-white font-karla">Login</h1>
           <button 
             onClick={onBack}
-            className="text-gray-500 hover:text-gray-700 text-lg"
+            className="text-gray-400 hover:text-white text-lg transition-colors"
           >
             ✕
           </button>
@@ -74,7 +59,7 @@ export default function App() {
             ) : showLogin ? (
               <LoginPage onBack={() => setShowLogin(false)} />
             ) : (
-              <LandingPage onShowLogin={() => setShowLogin(true)} />
+              <ThreeJSLanding onShowLogin={() => setShowLogin(true)} />
             )
           } 
         />

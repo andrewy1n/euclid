@@ -4,6 +4,7 @@ import { supabase, signOut, getUserWorkspacesWithPages } from '../util/supabase'
 import UploadBox from "../components/homepage/UploadBox";
 import SessionList from "../components/homepage/SessionList";
 import ImageModal from "../components/FileModal";
+import UserProfileDropdown from "../components/UserProfileDropdown";
 
 interface HomeProps {
   session: Session
@@ -112,33 +113,29 @@ export default function Home({ session }: HomeProps) {
   }))
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-black">
+      {/* Animated background gradient */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-900/10 via-purple-900/10 to-indigo-900/10 animate-pulse"></div>
+      
       {/* Navbar */}
-      <nav className="bg-white shadow-sm border-b">
+      <nav className="relative z-10 bg-black/50 backdrop-blur-sm border-b border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <h1 className="text-xl font-semibold text-gray-800">My App</h1>
-            <div className="flex items-center space-x-4">
-              <span className="text-gray-600">Welcome, {session.user.email}</span>
-              <button 
-                onClick={handleSignOut}
-                className="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-              >
-                Sign Out
-              </button>
-            </div>
+            <h1 className="text-xl font-semibold text-white font-karla">Euclid</h1>
+            <UserProfileDropdown session={session} onSignOut={handleSignOut} />
           </div>
         </div>
       </nav>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+      <main className="relative z-10 max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
         {/* Top message */}
         <div className="text-center mb-12">
-          <h2 className="text-4xl font-bold text-gray-800 mb-4">
+          <h2 className="text-4xl font-bold text-white mb-4 font-karla">
             Welcome back, {session.user.email}!
           </h2>
-          <p className="text-xl text-gray-600">
+          <div className="w-24 h-1 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto mb-4"></div>
+          <p className="text-xl text-gray-300 font-ibm-plex">
             Here's your study dashboard with recent sessions.
           </p>
         </div>
@@ -149,21 +146,21 @@ export default function Home({ session }: HomeProps) {
         {/* Loading state */}
         {isLoading && (
           <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading your workspaces...</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p className="text-gray-400 font-ibm-plex">Loading your workspaces...</p>
           </div>
         )}
 
         {/* Error state */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center text-red-700">
+          <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 mb-6 backdrop-blur-sm">
+            <div className="flex items-center text-red-400">
               <span className="text-red-500 mr-2">⚠️</span>
-              <span>{error}</span>
+              <span className="font-ibm-plex">{error}</span>
             </div>
             <button 
               onClick={loadWorkspaces}
-              className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
+              className="mt-2 text-sm text-red-400 hover:text-red-300 underline font-ibm-plex"
             >
               Try again
             </button>
@@ -177,33 +174,13 @@ export default function Home({ session }: HomeProps) {
               <SessionList sessions={sessions} />
             ) : (
               <div className="text-center py-12">
-                <div className="text-6xl text-gray-300 mb-4">📚</div>
-                <h3 className="text-xl font-semibold text-gray-600 mb-2">No workspaces yet</h3>
-                <p className="text-gray-500">Upload an image to create your first study session!</p>
+                <div className="text-6xl text-gray-600 mb-4">📚</div>
+                <h3 className="text-xl font-semibold text-gray-300 mb-2 font-karla">No workspaces yet</h3>
+                <p className="text-gray-500 font-ibm-plex">Upload an image to create your first study session!</p>
               </div>
             )}
           </>
         )}
-
-        {/* Account Info Card */}
-        <div className="bg-white rounded-lg shadow-lg p-8 max-w-2xl mx-auto mt-12">
-          <h3 className="text-2xl font-semibold text-gray-800 mb-4">Your Account Info</h3>
-          <div className="space-y-2 text-left">
-            <p>
-              <span className="font-medium">Email:</span> {session.user.email}
-            </p>
-            <p>
-              <span className="font-medium">User ID:</span> {session.user.id}
-            </p>
-            <p>
-              <span className="font-medium">Last Sign In:</span>{" "}
-              {new Date(session.user.last_sign_in_at || "").toLocaleString()}
-            </p>
-            <p>
-              <span className="font-medium">Workspaces:</span> {workspaces.length}
-            </p>
-          </div>
-        </div>
       </main>
 
       {/* Image Modal */}

@@ -19,6 +19,7 @@ interface SessionListProps {
 export default function SessionList({ sessions }: SessionListProps) {
   return (
     <div className="space-y-6">
+      <h3 className="text-2xl font-bold text-white mb-6 font-karla">Your Study Sessions</h3>
       {sessions.map((session) => (
         <SessionCard 
           key={session.workspaceId} 
