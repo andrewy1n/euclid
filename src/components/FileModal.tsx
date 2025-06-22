@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { 
   createWorkspaceWithUpload, 
   createPage, 
@@ -14,6 +15,7 @@ interface ImageModalProps {
 }
 
 export default function ImageModal({ isOpen, onClose, imageFile }: ImageModalProps) {
+  const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(false)
   const [responseText, setResponseText] = useState<string | null>(null)
   const [workspaceCreated, setWorkspaceCreated] = useState(false)
@@ -170,7 +172,9 @@ export default function ImageModal({ isOpen, onClose, imageFile }: ImageModalPro
         pageIds
       })
 
-      setResponseText(successMessage)
+      // Navigate to the newly created workspace instead of showing success text
+      onClose() // Close the modal
+      navigate(`/problem-space/${workspace.workspace_id}`)
 
     } catch (error) {
       console.error('💥 Error in generate review process:', error)
@@ -206,17 +210,8 @@ export default function ImageModal({ isOpen, onClose, imageFile }: ImageModalPro
           </div>
 
           {responseText && (
-            <div className="mt-6 bg-indigo-50 border border-indigo-200 p-4 rounded-md text-sm whitespace-pre-wrap text-gray-700">
+            <div className="mt-6 bg-red-50 border border-red-200 p-4 rounded-md text-sm whitespace-pre-wrap text-red-700">
               {responseText}
-            </div>
-          )}
-
-          {workspaceCreated && (
-            <div className="mt-4 bg-green-50 border border-green-200 p-3 rounded-md">
-              <div className="flex items-center text-green-700">
-                <span className="text-green-500 mr-2">✓</span>
-                <span className="text-sm font-medium">Workspace and pages created successfully!</span>
-              </div>
             </div>
           )}
         </div>

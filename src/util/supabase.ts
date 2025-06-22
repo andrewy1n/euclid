@@ -10,7 +10,7 @@ export const checkUserInfoExists = async (userId: string) => {
   try {
     const { data, error } = await supabase
       .from('user_info')
-      .select('user_id')
+      .select('user_id, workspace_id_list')
       .eq('user_id', userId)
       .single()
     
@@ -264,6 +264,7 @@ export const addWorkspaceToUser = async (userId: string, workspaceId: string) =>
       return { data, error }
     } else {
       console.log('🔄 Updating existing user_info...')
+      console.log(existingUserInfo)
       const currentWorkspaceList = (existingUserInfo as any)?.workspace_id_list || []
       const updatedWorkspaceList = [...currentWorkspaceList, workspaceId]
       
