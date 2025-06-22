@@ -1,5 +1,3 @@
-import React from "react";
-
 interface StatusChipProps {
   status: "in progress" | "completed";
 }

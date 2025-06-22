@@ -18,7 +18,6 @@ export default function ImageModal({ isOpen, onClose, imageFile }: ImageModalPro
   const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(false)
   const [responseText, setResponseText] = useState<string | null>(null)
-  const [workspaceCreated, setWorkspaceCreated] = useState(false)
 
   const toBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -48,7 +47,6 @@ export default function ImageModal({ isOpen, onClose, imageFile }: ImageModalPro
     console.log('🚀 Starting generate review process...')
     setIsLoading(true)
     setResponseText(null)
-    setWorkspaceCreated(false)
 
     try {
       console.log('📋 Step 1: Getting user session...')
@@ -109,7 +107,6 @@ export default function ImageModal({ isOpen, onClose, imageFile }: ImageModalPro
       const { workspace, upload } = workspaceData
       console.log('✅ Workspace created successfully:', workspace.workspace_id)
       console.log('📄 File uploaded:', upload.fileName, 'at', upload.url)
-      setWorkspaceCreated(true)
 
       console.log('📄 Step 5: Creating pages for each question...')
       const pageIds: string[] = []
@@ -147,13 +144,6 @@ export default function ImageModal({ isOpen, onClose, imageFile }: ImageModalPro
       } else {
         console.log('✅ Workspace updated with question list successfully')
       }
-
-      const successMessage = `✅ Workspace "${title}" created successfully!\n\n` +
-        `📄 File uploaded: ${upload.fileName}\n` +
-        `📝 Questions generated: ${questions.length}\n` +
-        `🆔 Workspace ID: ${workspace.workspace_id}\n` +
-        `📋 Page IDs: ${pageIds.join(', ')}\n\n` +
-        `Questions:\n${questions.map((q: string, i: number) => `${i + 1}. ${q}`).join('\n')}`
 
       console.log('🎉 Process completed successfully!')
       console.log('📊 Final Summary:', {

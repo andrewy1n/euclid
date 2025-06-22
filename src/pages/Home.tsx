@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import type { Session } from '@supabase/supabase-js'
-import { supabase, signOut, getUserWorkspacesWithPages } from '../util/supabase'
+import { signOut, getUserWorkspacesWithPages } from '../util/supabase'
 import UploadBox from "../components/homepage/UploadBox";
 import SessionList from "../components/homepage/SessionList";
 import ImageModal from "../components/FileModal";

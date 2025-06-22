@@ -6,7 +6,7 @@ export interface ClaudeResponse {
   }>;
 }
 
-export const mockClaudeAPI = async (base64: string, mime: string): Promise<ClaudeResponse> => {
+export const mockClaudeAPI = async (): Promise<ClaudeResponse> => {
   // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 2000));
   
