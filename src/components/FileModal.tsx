@@ -117,14 +117,7 @@ export default function ImageModal({ isOpen, onClose, imageFile }: ImageModalPro
         const question = questions[i]
         console.log(`📝 Creating page ${i + 1}/${questions.length}:`, question.substring(0, 50) + '...')
         
-        const snapshot = {
-          question,
-          timestamp: new Date().toISOString(),
-          fileUrl: upload.url,
-          fileName: upload.fileName
-        }
-
-        const { data: page, error: pageError } = await createPage(snapshot, question)
+        const { data: page, error: pageError } = await createPage({}, question)
         if (page && !pageError) {
           pageIds.push(page.page_id)
           console.log(`✅ Page ${i + 1} created with ID:`, page.page_id)

@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Tldraw } from 'tldraw';
+import { Tldraw, useEditor, getSnapshot, loadSnapshot } from 'tldraw';
 import 'tldraw/tldraw.css';
 import 'katex/dist/katex.min.css';
 import { BlockMath } from 'react-katex';
@@ -28,6 +28,187 @@ interface WorkspaceData {
   status: "in progress" | "completed";
 }
 
+// Custom UI component that will be rendered inside Tldraw
+function SubmitHelpButtons({ 
+  questionId, 
+  currentQuestion, 
+  onSnapshotUpdate,
+  setAutoSave
+}: { 
+  questionId: string; 
+  currentQuestion: Question;
+  onSnapshotUpdate?: (pageId: string, snapshot: any) => void;
+  setAutoSave?: (fn: () => Promise<void>) => void;
+}) {
+  const editor = useEditor();
+  const [submitStatus, setSubmitStatus] = useState<'idle' | 'submitting' | 'submitted' | 'error'>('idle');
+  const [helpStatus, setHelpStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+
+  // Load snapshot from Supabase when question changes
+  useEffect(() => {
+    if (editor) {
+      // Use a timeout to ensure editor is fully initialized
+      const timeoutId = setTimeout(() => {
+        try {
+          if (currentQuestion?.snapshot) {
+            // Reset tool state
+            editor.setCurrentTool('select');
+            
+            // Load the snapshot from Supabase (this will replace all content)
+            loadSnapshot(editor.store, currentQuestion.snapshot);
+            
+            console.log('✅ Snapshot loaded from Supabase for question:', questionId);
+          } else {
+            // No saved snapshot, ensure clean state
+            editor.setCurrentTool('select');
+            console.log('🆕 Starting fresh canvas for question:', questionId);
+          }
+        } catch (error) {
+          console.error('❌ Error loading snapshot from Supabase:', error);
+        }
+      }, 100); // Small delay to ensure editor is ready
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [currentQuestion?.snapshot, editor, questionId]);
+
+  // Auto-save snapshot when navigating away (this will be called from parent component)
+  const autoSaveSnapshot = useCallback(async () => {
+    if (!editor) return;
+    
+    try {
+      const { document, session } = getSnapshot(editor.store);
+      const snapshotData = { document, session };
+      
+      // Save to Supabase
+      const { error } = await updatePage(questionId, { snapshot: snapshotData });
+      
+      if (error) {
+        console.error('❌ Error auto-saving snapshot:', error);
+      } else {
+        console.log('✅ Snapshot auto-saved to Supabase for question:', questionId);
+        // Update local state if callback provided
+        onSnapshotUpdate?.(questionId, snapshotData);
+      }
+    } catch (error) {
+      console.error('❌ Error in auto-save:', error);
+    }
+  }, [editor, questionId, onSnapshotUpdate]);
+
+  // Register auto-save function with parent component
+  useEffect(() => {
+    if (setAutoSave) {
+      setAutoSave(autoSaveSnapshot);
+    }
+  }, [autoSaveSnapshot, setAutoSave]);
+
+  const handleSubmit = useCallback(async () => {
+    if (!editor) return;
+    
+    setSubmitStatus('submitting');
+    
+    try {
+      const { document, session } = getSnapshot(editor.store);
+      const snapshotData = { document, session };
+      
+      // Save to Supabase
+      const { error } = await updatePage(questionId, { snapshot: snapshotData });
+      
+      if (error) {
+        throw error;
+      }
+      
+      setSubmitStatus('submitted');
+      console.log('✅ Snapshot submitted to Supabase for question:', questionId);
+      
+      // Update local state if callback provided
+      onSnapshotUpdate?.(questionId, snapshotData);
+      
+      // Reset status after 2 seconds
+      setTimeout(() => setSubmitStatus('idle'), 2000);
+    } catch (error) {
+      console.error('❌ Error submitting snapshot:', error);
+      setSubmitStatus('error');
+      setTimeout(() => setSubmitStatus('idle'), 3000);
+    }
+  }, [editor, questionId, onSnapshotUpdate]);
+
+  const handleAskForHelp = useCallback(async () => {
+    if (!editor) return;
+    
+    setHelpStatus('loading');
+    
+    try {
+      // For now, just show a simple help message
+      // In the future, this could integrate with AI assistance or other help systems
+      alert('Help feature coming soon! This will provide AI-powered assistance with your problem.');
+      
+      setHelpStatus('loaded');
+      console.log('✅ Help requested for question:', questionId);
+      
+      // Reset status after 2 seconds
+      setTimeout(() => setHelpStatus('idle'), 2000);
+    } catch (error) {
+      console.error('❌ Error requesting help:', error);
+      setHelpStatus('error');
+      setTimeout(() => setHelpStatus('idle'), 3000);
+    }
+  }, [editor, questionId]);
+
+  const getSubmitButtonText = () => {
+    switch (submitStatus) {
+      case 'submitting': return '📤 Submitting...';
+      case 'submitted': return '✅ Submitted!';
+      case 'error': return '❌ Error';
+      default: return '📤 Submit';
+    }
+  };
+
+  const getHelpButtonText = () => {
+    switch (helpStatus) {
+      case 'loading': return '🤔 Loading...';
+      case 'loaded': return '✅ Help Ready!';
+      case 'error': return '❌ Error';
+      default: return '🤔 Ask for Help';
+    }
+  };
+
+  return (
+    <div className="absolute bottom-4 right-4 z-10 flex space-x-2">
+      <button
+        onClick={handleSubmit}
+        disabled={submitStatus === 'submitting'}
+        className={`font-semibold py-3 px-6 rounded-lg transition-colors text-sm shadow-lg ${
+          submitStatus === 'submitted' 
+            ? 'bg-green-600 text-white' 
+            : submitStatus === 'error'
+            ? 'bg-red-600 text-white'
+            : submitStatus === 'submitting'
+            ? 'bg-gray-400 text-white cursor-not-allowed'
+            : 'bg-blue-600 hover:bg-blue-700 text-white'
+        }`}
+      >
+        {getSubmitButtonText()}
+      </button>
+      <button
+        onClick={handleAskForHelp}
+        disabled={helpStatus === 'loading'}
+        className={`font-semibold py-3 px-6 rounded-lg transition-colors text-sm shadow-lg ${
+          helpStatus === 'loaded'
+            ? 'bg-green-600 text-white'
+            : helpStatus === 'error'
+            ? 'bg-red-600 text-white'
+            : helpStatus === 'loading'
+            ? 'bg-gray-400 text-white cursor-not-allowed'
+            : 'bg-purple-600 hover:bg-purple-700 text-white'
+        }`}
+      >
+        {getHelpButtonText()}
+      </button>
+    </div>
+  );
+}
+
 export default function ProblemSpace() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
@@ -35,6 +216,7 @@ export default function ProblemSpace() {
   const [workspaceData, setWorkspaceData] = useState<WorkspaceData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [autoSaveFunction, setAutoSaveFunction] = useState<(() => Promise<void>) | null>(null);
 
   // Load workspace data from Supabase
   const loadWorkspaceData = useCallback(async () => {
@@ -83,15 +265,23 @@ export default function ProblemSpace() {
 
   const goToNextQuestion = useCallback(() => {
     if (currentQuestionIndex < totalQuestions - 1) {
+      // Auto-save current question before navigating
+      if (autoSaveFunction) {
+        autoSaveFunction();
+      }
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     }
-  }, [currentQuestionIndex, totalQuestions]);
+  }, [currentQuestionIndex, totalQuestions, autoSaveFunction]);
 
   const goToPreviousQuestion = useCallback(() => {
     if (currentQuestionIndex > 0) {
+      // Auto-save current question before navigating
+      if (autoSaveFunction) {
+        autoSaveFunction();
+      }
       setCurrentQuestionIndex(currentQuestionIndex - 1);
     }
-  }, [currentQuestionIndex]);
+  }, [currentQuestionIndex, autoSaveFunction]);
 
   const markQuestionAsFinished = useCallback(async () => {
     if (!currentQuestion) return;
@@ -139,6 +329,29 @@ export default function ProblemSpace() {
   const goBackToHome = useCallback(() => {
     navigate('/home');
   }, [navigate]);
+
+  // Handle snapshot updates
+  const handleSnapshotUpdate = useCallback((pageId: string, snapshot: any) => {
+    setWorkspaceData(prev => {
+      if (!prev) return prev;
+      
+      const updatedPages = prev.pages.map(page => 
+        page.page_id === pageId 
+          ? { ...page, snapshot }
+          : page
+      );
+      
+      return {
+        ...prev,
+        pages: updatedPages
+      };
+    });
+  }, []);
+
+  // Set auto-save function
+  const setAutoSave = useCallback((fn: () => Promise<void>) => {
+    setAutoSaveFunction(() => fn);
+  }, []);
 
   // Loading state
   if (isLoading) {
@@ -332,7 +545,14 @@ export default function ProblemSpace() {
         {/* TLDraw Component */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="h-[600px]">
-            <Tldraw />
+            <Tldraw>
+              <SubmitHelpButtons 
+                questionId={currentQuestion.page_id} 
+                currentQuestion={currentQuestion}
+                onSnapshotUpdate={handleSnapshotUpdate}
+                setAutoSave={setAutoSave}
+              />
+            </Tldraw>
           </div>
         </div>
       </div>
