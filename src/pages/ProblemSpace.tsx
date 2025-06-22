@@ -1,0 +1,341 @@
+import React, { useState, useCallback, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Tldraw } from 'tldraw';
+import 'tldraw/tldraw.css';
+import 'katex/dist/katex.min.css';
+import { BlockMath } from 'react-katex';
+import { getWorkspaceWithPages, updatePage } from '../util/supabase';
+
+interface Question {
+  page_id: string;
+  question?: string;
+  is_complete: boolean;
+  snapshot: any;
+  created_at: string;
+}
+
+interface WorkspaceData {
+  workspace_id: string;
+  title: string;
+  upload_url?: string;
+  page_id_list?: string[];
+  question_list?: string[];
+  num_completed?: number;
+  created_at: string;
+  pages: Question[];
+  completedCount: number;
+  totalCount: number;
+  status: "in progress" | "completed";
+}
+
+export default function ProblemSpace() {
+  const { sessionId } = useParams<{ sessionId: string }>();
+  const navigate = useNavigate();
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [workspaceData, setWorkspaceData] = useState<WorkspaceData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load workspace data from Supabase
+  const loadWorkspaceData = useCallback(async () => {
+    if (!sessionId) {
+      setError('No session ID provided');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      console.log('🔄 Loading workspace data for:', sessionId);
+      const { data, error } = await getWorkspaceWithPages(sessionId);
+      
+      if (error) {
+        console.error('❌ Error loading workspace:', error);
+        setError('Failed to load workspace data');
+        return;
+      }
+      
+      if (!data) {
+        setError('Workspace not found');
+        return;
+      }
+      
+      console.log('✅ Workspace data loaded:', data);
+      setWorkspaceData(data);
+    } catch (err) {
+      console.error('💥 Error in loadWorkspaceData:', err);
+      setError('Failed to load workspace data');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [sessionId]);
+
+  // Load data on component mount
+  useEffect(() => {
+    loadWorkspaceData();
+  }, [loadWorkspaceData]);
+
+  const questions = workspaceData?.pages || [];
+  const currentQuestion = questions[currentQuestionIndex];
+  const totalQuestions = questions.length;
+
+  const goToNextQuestion = useCallback(() => {
+    if (currentQuestionIndex < totalQuestions - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    }
+  }, [currentQuestionIndex, totalQuestions]);
+
+  const goToPreviousQuestion = useCallback(() => {
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(currentQuestionIndex - 1);
+    }
+  }, [currentQuestionIndex]);
+
+  const markQuestionAsFinished = useCallback(async () => {
+    if (!currentQuestion) return;
+
+    try {
+      const newCompleteStatus = !currentQuestion.is_complete;
+      
+      // Update the page in Supabase
+      const { error } = await updatePage(currentQuestion.page_id, {
+        is_complete: newCompleteStatus
+      });
+
+      if (error) {
+        console.error('❌ Error updating page:', error);
+        return;
+      }
+
+      // Update local state
+      setWorkspaceData(prev => {
+        if (!prev) return prev;
+        
+        const updatedPages = prev.pages.map((page, index) => 
+          index === currentQuestionIndex 
+            ? { ...page, is_complete: newCompleteStatus }
+            : page
+        );
+        
+        const completedCount = updatedPages.filter(page => page.is_complete).length;
+        const status = completedCount === updatedPages.length && updatedPages.length > 0 ? 'completed' as const : 'in progress' as const;
+        
+        return {
+          ...prev,
+          pages: updatedPages,
+          completedCount,
+          status
+        };
+      });
+
+      console.log('✅ Question status updated:', newCompleteStatus);
+    } catch (err) {
+      console.error('💥 Error marking question as finished:', err);
+    }
+  }, [currentQuestion, currentQuestionIndex]);
+
+  const goBackToHome = useCallback(() => {
+    navigate('/home');
+  }, [navigate]);
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading workspace...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">Error Loading Workspace</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <div className="space-x-4">
+            <button
+              onClick={loadWorkspaceData}
+              className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+            >
+              Try Again
+            </button>
+            <button
+              onClick={goBackToHome}
+              className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+            >
+              Back to Home
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // No workspace data
+  if (!workspaceData) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-gray-500 text-6xl mb-4">📚</div>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">Workspace Not Found</h2>
+          <p className="text-gray-600 mb-4">The requested workspace could not be found.</p>
+          <button
+            onClick={goBackToHome}
+            className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+          >
+            Back to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // No questions
+  if (totalQuestions === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="bg-white shadow-sm border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={goBackToHome}
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  ← Back to Home
+                </button>
+                <div className="h-6 w-px bg-gray-300"></div>
+                <div>
+                  <h1 className="text-lg font-semibold text-gray-900">{workspaceData.title}</h1>
+                  <p className="text-sm text-gray-500">Problem Space</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="text-center">
+            <div className="text-gray-400 text-6xl mb-4">❓</div>
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">No Questions Available</h2>
+            <p className="text-gray-600">This workspace doesn't have any questions yet.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            {/* Left side - Back button and session info */}
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={goBackToHome}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                ← Back to Home
+              </button>
+              <div className="h-6 w-px bg-gray-300"></div>
+              <div>
+                <h1 className="text-lg font-semibold text-gray-900">{workspaceData.title}</h1>
+                <p className="text-sm text-gray-500">Problem Space</p>
+              </div>
+            </div>
+
+            {/* Right side - Question navigation */}
+            <div className="flex items-center space-x-4">
+              <div className="text-sm text-gray-600">
+                Question {currentQuestionIndex + 1} of {totalQuestions}
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={goToPreviousQuestion}
+                  disabled={currentQuestionIndex === 0}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={goToNextQuestion}
+                  disabled={currentQuestionIndex === totalQuestions - 1}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Question Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="bg-blue-100 text-blue-800 font-semibold rounded-full w-8 h-8 flex items-center justify-center text-sm">
+                {currentQuestionIndex + 1}
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Question {currentQuestionIndex + 1}</h2>
+                <p className="text-sm text-gray-500">Solve the following problem</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className={`text-sm font-medium px-3 py-1 rounded-full ${
+                currentQuestion.is_complete
+                  ? "bg-green-100 text-green-700"
+                  : "bg-yellow-100 text-yellow-700"
+              }`}>
+                {currentQuestion.is_complete ? "Finished" : "In Progress"}
+              </span>
+              <button
+                onClick={markQuestionAsFinished}
+                className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                  currentQuestion.is_complete
+                    ? "bg-red-100 text-red-700 hover:bg-red-200"
+                    : "bg-green-100 text-green-700 hover:bg-green-200"
+                }`}
+              >
+                {currentQuestion.is_complete ? "Mark Incomplete" : "Mark Complete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Question Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <div className="bg-gray-50 rounded-lg p-6">
+            {currentQuestion.question ? (
+              // <p className="text-lg text-gray-700">{currentQuestion.question}</p>
+              <BlockMath>{String.raw`${currentQuestion.question}`}</BlockMath>
+            ) : (
+              <p className="text-gray-500 italic">No question text available</p>
+            )}
+          </div>
+        </div>
+
+        {/* TLDraw Component */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="h-[600px]">
+            <Tldraw />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+} 

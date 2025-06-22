@@ -1,1 +1,28 @@
 @import "tailwindcss";
+@import "katex/dist/katex.min.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* KaTeX text wrapping styles */
+.katex-display {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+  max-width: 100%;
+}
+
+.katex {
+  font-size: 1em;
+  line-height: 1.2;
+}
+
+/* Ensure BlockMath containers handle overflow properly */
+.katex-display > .katex {
+  display: inline-block;
+  text-align: left;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}

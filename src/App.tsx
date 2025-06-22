@@ -1,47 +1,104 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+import './index.css'
+import { useState, useEffect } from 'react'
+import type { Session } from '@supabase/supabase-js'
+import { Auth } from '@supabase/auth-ui-react'
+import { ThemeSupa } from '@supabase/auth-ui-shared'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import Home from './pages/Home'
+import ProblemSpace from './pages/ProblemSpace'
+import { supabase, getSession, onAuthStateChange } from './util/supabase'
 
-function App() {
-  const [count, setCount] = useState(0)
-
+function LandingPage({ onShowLogin }: { onShowLogin: () => void }) {
   return (
-    <div className="max-w-4xl mx-auto p-8 text-center min-h-screen flex flex-col items-center justify-center">
-      <div className="flex justify-center gap-8 mb-8">
-        <a href="https://vite.dev" target="_blank" rel="noopener noreferrer">
-          <img
-            src={viteLogo}
-            alt="Vite logo"
-            className="h-24 p-6 transition duration-300 hover:drop-shadow-[0_0_2em_#646cffaa]"
-          />
-        </a>
-        <a href="https://react.dev" target="_blank" rel="noopener noreferrer">
-          <img
-            src={reactLogo}
-            alt="React logo"
-            className="h-24 p-6 transition duration-300 hover:drop-shadow-[0_0_2em_#61dafbaa] animate-spin-slow"
-          />
-        </a>
-      </div>
-      <h1 className="text-4xl font-bold mb-8">Vite + React</h1>
-      <div className="p-8 bg-white/80 rounded-lg shadow-md mb-8">
-        <button
-          onClick={() => setCount((count) => count + 1)}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors mb-4"
-        >
-          count is {count}
-        </button>
-        <p>
-          Edit <code className="bg-gray-100 px-2 py-1 rounded">src/App.tsx</code> and save to test HMR
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="text-center max-w-2xl mx-auto px-6">
+        <h1 className="text-5xl font-bold text-gray-800 mb-6">Welcome to Our App</h1>
+        <p className="text-xl text-gray-600 mb-8">
+          Get started by signing in to access your personalized experience.
         </p>
+        <button 
+          onClick={onShowLogin} 
+          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg text-lg transition-colors shadow-lg hover:shadow-xl"
+        >
+          Get Started
+        </button>
       </div>
-      <p className="text-gray-500">Click on the Vite and React logos to learn more</p>
-      <style>{`
-        @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .animate-spin-slow { animation: spin-slow 20s linear infinite; }
-      `}</style>
     </div>
   )
 }
 
-export default App
+function LoginPage({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold text-gray-800">Login</h1>
+          <button 
+            onClick={onBack}
+            className="text-gray-500 hover:text-gray-700 text-lg"
+          >
+            ✕
+          </button>
+        </div>
+        <Auth supabaseClient={supabase} appearance={{ theme: ThemeSupa }} />
+      </div>
+    </div>
+  )
+}
+
+export default function App() {
+  const [session, setSession] = useState<Session | null>(null)
+  const [showLogin, setShowLogin] = useState(false)
+
+  useEffect(() => {
+    getSession().then(({ session }) => {
+      setSession(session)
+    })
+
+    const { data: { subscription } } = onAuthStateChange(async (event, session) => {
+      console.log('Auth state change:', event, session?.user?.id)
+      setSession(session)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  return (
+    <Router>
+      <Routes>
+        <Route 
+          path="/" 
+          element={
+            session ? (
+              <Navigate to="/home" replace />
+            ) : showLogin ? (
+              <LoginPage onBack={() => setShowLogin(false)} />
+            ) : (
+              <LandingPage onShowLogin={() => setShowLogin(true)} />
+            )
+          } 
+        />
+        <Route 
+          path="/home" 
+          element={
+            session ? (
+              <Home session={session} />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          } 
+        />
+        <Route 
+          path="/problem-space/:sessionId" 
+          element={
+            session ? (
+              <ProblemSpace />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          } 
+        />
+      </Routes>
+    </Router>
+  )
+}
