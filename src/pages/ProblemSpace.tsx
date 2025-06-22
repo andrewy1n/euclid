@@ -33,12 +33,12 @@ function SubmitHelpButtons({
   questionId, 
   currentQuestion, 
   onSnapshotUpdate,
-  setAutoSave
+  setSave
 }: { 
   questionId: string; 
   currentQuestion: Question;
   onSnapshotUpdate?: (pageId: string, snapshot: any) => void;
-  setAutoSave?: (fn: () => Promise<void>) => void;
+  setSave?: (fn: () => Promise<void>) => void;
 }) {
   const editor = useEditor();
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'submitting' | 'submitted' | 'error'>('idle');
@@ -72,8 +72,8 @@ function SubmitHelpButtons({
     }
   }, [currentQuestion?.snapshot, editor, questionId]);
 
-  // Auto-save snapshot when navigating away (this will be called from parent component)
-  const autoSaveSnapshot = useCallback(async () => {
+  // Save snapshot function
+  const saveSnapshot = useCallback(async () => {
     if (!editor) return;
     
     try {
@@ -84,24 +84,18 @@ function SubmitHelpButtons({
       const { error } = await updatePage(questionId, { snapshot: snapshotData });
       
       if (error) {
-        console.error('❌ Error auto-saving snapshot:', error);
+        console.error('❌ Error saving snapshot:', error);
       } else {
-        console.log('✅ Snapshot auto-saved to Supabase for question:', questionId);
+        console.log('✅ Snapshot saved to Supabase for question:', questionId);
         // Update local state if callback provided
         onSnapshotUpdate?.(questionId, snapshotData);
       }
     } catch (error) {
-      console.error('❌ Error in auto-save:', error);
+      console.error('❌ Error in save:', error);
     }
   }, [editor, questionId, onSnapshotUpdate]);
 
-  // Register auto-save function with parent component
-  useEffect(() => {
-    if (setAutoSave) {
-      setAutoSave(autoSaveSnapshot);
-    }
-  }, [autoSaveSnapshot, setAutoSave]);
-
+  // Handle submit button click with visual feedback
   const handleSubmit = useCallback(async () => {
     if (!editor) return;
     
@@ -132,6 +126,13 @@ function SubmitHelpButtons({
       setTimeout(() => setSubmitStatus('idle'), 3000);
     }
   }, [editor, questionId, onSnapshotUpdate]);
+
+  // Register save function with parent component
+  useEffect(() => {
+    if (setSave) {
+      setSave(saveSnapshot);
+    }
+  }, [saveSnapshot, setSave]);
 
   const handleAskForHelp = useCallback(async () => {
     if (!editor) return;
@@ -216,7 +217,7 @@ export default function ProblemSpace() {
   const [workspaceData, setWorkspaceData] = useState<WorkspaceData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [autoSaveFunction, setAutoSaveFunction] = useState<(() => Promise<void>) | null>(null);
+  const [saveFunction, setSaveFunction] = useState<(() => Promise<void>) | null>(null);
 
   // Load workspace data from Supabase
   const loadWorkspaceData = useCallback(async () => {
@@ -265,23 +266,23 @@ export default function ProblemSpace() {
 
   const goToNextQuestion = useCallback(() => {
     if (currentQuestionIndex < totalQuestions - 1) {
-      // Auto-save current question before navigating
-      if (autoSaveFunction) {
-        autoSaveFunction();
+      // Save current question before navigating
+      if (saveFunction) {
+        saveFunction();
       }
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     }
-  }, [currentQuestionIndex, totalQuestions, autoSaveFunction]);
+  }, [currentQuestionIndex, totalQuestions, saveFunction]);
 
   const goToPreviousQuestion = useCallback(() => {
     if (currentQuestionIndex > 0) {
-      // Auto-save current question before navigating
-      if (autoSaveFunction) {
-        autoSaveFunction();
+      // Save current question before navigating
+      if (saveFunction) {
+        saveFunction();
       }
       setCurrentQuestionIndex(currentQuestionIndex - 1);
     }
-  }, [currentQuestionIndex, autoSaveFunction]);
+  }, [currentQuestionIndex, saveFunction]);
 
   const markQuestionAsFinished = useCallback(async () => {
     if (!currentQuestion) return;
@@ -348,9 +349,9 @@ export default function ProblemSpace() {
     });
   }, []);
 
-  // Set auto-save function
-  const setAutoSave = useCallback((fn: () => Promise<void>) => {
-    setAutoSaveFunction(() => fn);
+  // Set save function from child component
+  const setSave = useCallback((fn: () => Promise<void>) => {
+    setSaveFunction(() => fn);
   }, []);
 
   // Loading state
@@ -550,7 +551,7 @@ export default function ProblemSpace() {
                 questionId={currentQuestion.page_id} 
                 currentQuestion={currentQuestion}
                 onSnapshotUpdate={handleSnapshotUpdate}
-                setAutoSave={setAutoSave}
+                setSave={setSave}
               />
             </Tldraw>
           </div>
