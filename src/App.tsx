@@ -25,7 +25,62 @@ function LoginPage({ onBack }: { onBack: () => void }) {
             ✕
           </button>
         </div>
-        <Auth supabaseClient={supabase} appearance={{ theme: ThemeSupa }} />
+        <Auth 
+          supabaseClient={supabase} 
+          appearance={{ 
+            theme: ThemeSupa,
+            variables: {
+              default: {
+                colors: {
+                  brand: '#3b82f6',
+                  brandAccent: '#1d4ed8',
+                  brandButtonText: '#ffffff',
+                  defaultButtonBackground: '#374151',
+                  defaultButtonBackgroundHover: '#4b5563',
+                  defaultButtonBorder: '#6b7280',
+                  defaultButtonText: '#ffffff',
+                  dividerBackground: '#374151',
+                  inputBackground: '#1f2937',
+                  inputBorder: '#4b5563',
+                  inputBorderHover: '#6b7280',
+                  inputBorderFocus: '#3b82f6',
+                  inputText: '#ffffff',
+                  inputLabelText: '#d1d5db',
+                  inputPlaceholder: '#9ca3af',
+                  messageText: '#d1d5db',
+                  messageTextDanger: '#fca5a5',
+                  anchorTextColor: '#60a5fa',
+                  anchorTextHoverColor: '#93c5fd',
+                },
+                space: {
+                  inputPadding: '12px',
+                  buttonPadding: '12px',
+                },
+                fontSizes: {
+                  baseBodySize: '14px',
+                  baseInputSize: '14px',
+                  baseLabelSize: '14px',
+                  baseButtonSize: '14px',
+                },
+                fonts: {
+                  bodyFontFamily: 'Inter, system-ui, sans-serif',
+                  buttonFontFamily: 'Inter, system-ui, sans-serif',
+                  inputFontFamily: 'Inter, system-ui, sans-serif',
+                  labelFontFamily: 'Inter, system-ui, sans-serif',
+                },
+                borderWidths: {
+                  buttonBorderWidth: '1px',
+                  inputBorderWidth: '1px',
+                },
+                radii: {
+                  borderRadiusButton: '8px',
+                  buttonBorderRadius: '8px',
+                  inputBorderRadius: '8px',
+                },
+              },
+            },
+          }} 
+        />
       </div>
     </div>
   )
