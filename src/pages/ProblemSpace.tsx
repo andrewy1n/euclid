@@ -1,10 +1,13 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Tldraw, useEditor, getSnapshot, loadSnapshot } from 'tldraw';
 import 'tldraw/tldraw.css';
 import 'katex/dist/katex.min.css';
 import { BlockMath } from 'react-katex';
 import { getWorkspaceWithPages, updatePage } from '../util/supabase';
+import { startVapi, stopVapi } from '../services/vapi';
+import { describeCanvas } from '../services/canvas';
+import vapi from '../services/vapi';
 
 interface Question {
   page_id: string;
@@ -33,16 +36,19 @@ function SubmitHelpButtons({
   questionId, 
   currentQuestion, 
   onSnapshotUpdate,
-  setSave
+  setSave,
+  onQuestionComplete
 }: { 
   questionId: string; 
   currentQuestion: Question;
   onSnapshotUpdate?: (pageId: string, snapshot: any) => void;
   setSave?: (fn: () => Promise<void>) => void;
+  onQuestionComplete?: () => void;
 }) {
   const editor = useEditor();
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'submitting' | 'submitted' | 'error'>('idle');
   const [helpStatus, setHelpStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+  const [isCallActive, setIsCallActive] = useState(false);
 
   // Load snapshot from Supabase when question changes
   useEffect(() => {
@@ -72,6 +78,40 @@ function SubmitHelpButtons({
     }
   }, [currentQuestion?.snapshot, editor, questionId]);
 
+  // Listen for Vapi call events
+  useEffect(() => {
+    const handleCallStart = () => {
+      setIsCallActive(true);
+      setHelpStatus('loaded');
+      console.log('✅ Vapi call started');
+    };
+
+    const handleCallEnd = () => {
+      setIsCallActive(false);
+      setHelpStatus('idle');
+      console.log('✅ Vapi call ended');
+    };
+
+    const handleCallError = (error: any) => {
+      setIsCallActive(false);
+      setHelpStatus('error');
+      console.error('❌ Vapi call error:', error);
+      setTimeout(() => setHelpStatus('idle'), 3000);
+    };
+
+    // Add event listeners
+    vapi.on('call-start', handleCallStart);
+    vapi.on('call-end', handleCallEnd);
+    vapi.on('error', handleCallError);
+
+    // Cleanup event listeners
+    return () => {
+      vapi.off('call-start', handleCallStart);
+      vapi.off('call-end', handleCallEnd);
+      vapi.off('error', handleCallError);
+    };
+  }, []);
+
   // Save snapshot function
   const saveSnapshot = useCallback(async () => {
     if (!editor) return;
@@ -95,37 +135,103 @@ function SubmitHelpButtons({
     }
   }, [editor, questionId, onSnapshotUpdate]);
 
-  // Handle submit button click with visual feedback
   const handleSubmit = useCallback(async () => {
-    if (!editor) return;
-    
+    if (!editor || !currentQuestion?.question) {
+      console.warn('🛑 Missing editor or question text.');
+      return;
+    }
+
     setSubmitStatus('submitting');
-    
+    console.log('📤 Submitting canvas image for question:', currentQuestion.page_id);
+
     try {
+      // Capture canvas as image using Editor.toImage
+      const canvasImage = await editor.toImage(editor.getSelectedShapeIds(), { format: 'png' });
+      console.log('📸 Canvas image captured');
+
+      // Save snapshot to Supabase (for persistence)
       const { document, session } = getSnapshot(editor.store);
       const snapshotData = { document, session };
-      
-      // Save to Supabase
-      const { error } = await updatePage(questionId, { snapshot: snapshotData });
-      
+
+      console.log('💾 Saving snapshot to Supabase...');
+      const { error } = await updatePage(currentQuestion.page_id, { snapshot: snapshotData });
       if (error) {
+        console.error('❌ Error saving to Supabase:', error);
         throw error;
       }
-      
+      console.log('✅ Snapshot saved to Supabase.');
+
+      // Convert image Blob to base64
+      const toBase64 = (blob: Blob): Promise<string> =>
+        new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve((reader.result as string).split(',')[1]); // extract raw base64
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+
+      const base64 = await toBase64(canvasImage.blob);
+      console.log('📦 Base64 image prepared');
+
+      // Prepare payload for Edge Function
+      const payload = {
+        imageBase64: base64, // ✅ fixed key
+        question: currentQuestion.question
+      };
+
+      console.log('📡 Sending canvas image to Edge Function');
+
+      const response = await fetch(
+        'https://sclinsqexujpvpwqszyz.supabase.co/functions/v1/check-problem',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify(payload)
+        }
+      );
+
+      console.log('📬 Response status:', response.status);
+
+      const result = await response.json();
+      console.log('✅ Claude evaluation result:', result);
+
+      if (result.isCorrect === true) {
+        alert('✅ Your answer is correct!');
+        
+        // Automatically mark the problem as complete
+        if (!currentQuestion.is_complete) {
+          const { error: updateError } = await updatePage(currentQuestion.page_id, {
+            is_complete: true
+          });
+          
+          if (updateError) {
+            console.error('❌ Error marking question as complete:', updateError);
+          } else {
+            // Update local state
+            onQuestionComplete?.();
+            
+            console.log('✅ Question automatically marked as complete');
+          }
+        }
+      } else if (result.isCorrect === false) {
+        alert(`❌ Incorrect answer.\nReason: ${result.explanation}`);
+      } else {
+        alert('⚠️ No verdict from AI grader.');
+      }
+
       setSubmitStatus('submitted');
-      console.log('✅ Snapshot submitted to Supabase for question:', questionId);
-      
-      // Update local state if callback provided
-      onSnapshotUpdate?.(questionId, snapshotData);
-      
-      // Reset status after 2 seconds
+      onSnapshotUpdate?.(currentQuestion.page_id, snapshotData);
+
       setTimeout(() => setSubmitStatus('idle'), 2000);
     } catch (error) {
-      console.error('❌ Error submitting snapshot:', error);
+      console.error('❌ Error during submission process:', error);
       setSubmitStatus('error');
       setTimeout(() => setSubmitStatus('idle'), 3000);
     }
-  }, [editor, questionId, onSnapshotUpdate]);
+  }, [editor, currentQuestion, onQuestionComplete, onSnapshotUpdate]);
 
   // Register save function with parent component
   useEffect(() => {
@@ -137,24 +243,52 @@ function SubmitHelpButtons({
   const handleAskForHelp = useCallback(async () => {
     if (!editor) return;
     
-    setHelpStatus('loading');
-    
     try {
-      // For now, just show a simple help message
-      // In the future, this could integrate with AI assistance or other help systems
-      alert('Help feature coming soon! This will provide AI-powered assistance with your problem.');
-      
-      setHelpStatus('loaded');
-      console.log('✅ Help requested for question:', questionId);
-      
-      // Reset status after 2 seconds
-      setTimeout(() => setHelpStatus('idle'), 2000);
+      if (isCallActive) {
+        // If call is active, stop it
+        stopVapi();
+        setIsCallActive(false);
+        setHelpStatus('idle');
+        console.log('✅ Vapi call stopped');
+      } else {
+        // If no call is active, start it with context and canvas description
+        setHelpStatus('loading');
+        
+        // Capture canvas as image
+        const canvasImage = await editor.toImage(editor.getSelectedShapeIds(), { format: 'png' });
+        console.log('📸 Canvas image captured for description');
+        
+        // Convert image Blob to base64 for the description service
+        const toBase64 = (blob: Blob): Promise<string> =>
+          new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve((reader.result as string).split(',')[1]); // extract raw base64
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+
+        const imageBase64 = await toBase64(canvasImage.blob);
+        
+        // Get canvas description from the edge function
+        console.log('🔍 Getting canvas description...');
+        const { description: canvasDescription } = await describeCanvas(imageBase64);
+        console.log('✅ Canvas description:', canvasDescription);
+        
+        // Create context message with the question
+        const contextMessage = `Hi! I need help with this math problem: ${currentQuestion.question}`;
+        
+        // Start Vapi with the context and canvas description (no image)
+        startVapi(contextMessage, canvasDescription);
+
+        console.log('✅ Vapi call started for question:', questionId);
+      }
     } catch (error) {
-      console.error('❌ Error requesting help:', error);
+      console.error('❌ Error with Vapi call:', error);
       setHelpStatus('error');
+      setIsCallActive(false);
       setTimeout(() => setHelpStatus('idle'), 3000);
     }
-  }, [editor, questionId]);
+  }, [editor, questionId, isCallActive, currentQuestion.question]);
 
   const getSubmitButtonText = () => {
     switch (submitStatus) {
@@ -166,9 +300,13 @@ function SubmitHelpButtons({
   };
 
   const getHelpButtonText = () => {
+    if (isCallActive) {
+      return '📞 End Call';
+    }
+    
     switch (helpStatus) {
-      case 'loading': return '🤔 Loading...';
-      case 'loaded': return '✅ Help Ready!';
+      case 'loading': return '🤔 Starting...';
+      case 'loaded': return '📞 Call Active';
       case 'error': return '❌ Error';
       default: return '🤔 Ask for Help';
     }
@@ -195,7 +333,9 @@ function SubmitHelpButtons({
         onClick={handleAskForHelp}
         disabled={helpStatus === 'loading'}
         className={`font-semibold py-3 px-6 rounded-lg transition-colors text-sm shadow-lg ${
-          helpStatus === 'loaded'
+          isCallActive
+            ? 'bg-red-600 hover:bg-red-700 text-white'
+            : helpStatus === 'loaded'
             ? 'bg-green-600 text-white'
             : helpStatus === 'error'
             ? 'bg-red-600 text-white'
@@ -283,49 +423,6 @@ export default function ProblemSpace() {
       setCurrentQuestionIndex(currentQuestionIndex - 1);
     }
   }, [currentQuestionIndex, saveFunction]);
-
-  const markQuestionAsFinished = useCallback(async () => {
-    if (!currentQuestion) return;
-
-    try {
-      const newCompleteStatus = !currentQuestion.is_complete;
-      
-      // Update the page in Supabase
-      const { error } = await updatePage(currentQuestion.page_id, {
-        is_complete: newCompleteStatus
-      });
-
-      if (error) {
-        console.error('❌ Error updating page:', error);
-        return;
-      }
-
-      // Update local state
-      setWorkspaceData(prev => {
-        if (!prev) return prev;
-        
-        const updatedPages = prev.pages.map((page, index) => 
-          index === currentQuestionIndex 
-            ? { ...page, is_complete: newCompleteStatus }
-            : page
-        );
-        
-        const completedCount = updatedPages.filter(page => page.is_complete).length;
-        const status = completedCount === updatedPages.length && updatedPages.length > 0 ? 'completed' as const : 'in progress' as const;
-        
-        return {
-          ...prev,
-          pages: updatedPages,
-          completedCount,
-          status
-        };
-      });
-
-      console.log('✅ Question status updated:', newCompleteStatus);
-    } catch (err) {
-      console.error('💥 Error marking question as finished:', err);
-    }
-  }, [currentQuestion, currentQuestionIndex]);
 
   const goBackToHome = useCallback(() => {
     navigate('/home');
@@ -515,16 +612,6 @@ export default function ProblemSpace() {
               }`}>
                 {currentQuestion.is_complete ? "Finished" : "In Progress"}
               </span>
-              <button
-                onClick={markQuestionAsFinished}
-                className={`px-3 py-1 text-sm rounded-md transition-colors ${
-                  currentQuestion.is_complete
-                    ? "bg-red-100 text-red-700 hover:bg-red-200"
-                    : "bg-green-100 text-green-700 hover:bg-green-200"
-                }`}
-              >
-                {currentQuestion.is_complete ? "Mark Incomplete" : "Mark Complete"}
-              </button>
             </div>
           </div>
         </div>
@@ -552,6 +639,27 @@ export default function ProblemSpace() {
                 currentQuestion={currentQuestion}
                 onSnapshotUpdate={handleSnapshotUpdate}
                 setSave={setSave}
+                onQuestionComplete={() => {
+                  if (workspaceData) {
+                    const updatedPages = workspaceData.pages.map((page, index) => 
+                      index === currentQuestionIndex 
+                        ? { ...page, is_complete: true }
+                        : page
+                    );
+                    
+                    const completedCount = updatedPages.filter(page => page.is_complete).length;
+                    const status = completedCount === updatedPages.length && updatedPages.length > 0 ? 'completed' as const : 'in progress' as const;
+                    
+                    setWorkspaceData({
+                      ...workspaceData,
+                      pages: updatedPages,
+                      completedCount,
+                      status
+                    });
+                  }
+                  
+                  console.log('✅ Question automatically marked as complete');
+                }}
               />
             </Tldraw>
           </div>
